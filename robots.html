@@ -32,6 +32,7 @@
   </div>
   <script>
     const BOARD = {
+      size: 8,
       walls: [[[-7,-7],[-8,-7]],[[-7,-7],[-7,-8]],[[-6,-5],[-6,-6]],[[-6,-5],[-7,-5]],[[-7,-4],[-8,-4]],[[-8,-3],[-8,-4]],[[-7,0],[-7,1]],[[-5,-2],[-6,-2]],[[-5,-1],[-5,-2]],[[-3,0],[-3,-1]],[[-4,-4],[-4,-5]],[[-3,-5],[-4,-5]],[[0,-4],[-1,-4]],[[-2,-6],[-2,-7]],[[-1,-6],[-2,-6]],[[-4,1],[-5,1]],[[-5,1],[-5,2]],[[-6,4],[-6,5]],[[-6,5],[-7,5]],[[-7,7],[-8,7]],[[-7,7],[-7,8]],[[-4,6],[-4,7]],[[-3,7],[-4,7]],[[-1,3],[-2,3]],[[-1,3],[-1,4]],[[0,2],[-1,2]],[[1,3],[1,4]],[[1,4],[2,4]],[[0,6],[1,6]],[[2,0],[2,1]],[[3,7],[4,7]],[[4,6],[4,7]],[[4,1],[5,1]],[[5,1],[5,2]],[[5,5],[5,6]],[[5,5],[6,5]],[[7,7],[7,8]],[[7,7],[8,7]],[[7,-7],[7,-8]],[[7,-7],[8,-7]],[[5,-5],[6,-5]],[[6,-4],[6,-5]],[[4,-3],[5,-3]],[[4,-2],[4,-3]],[[4,0],[4,-1]],[[2,-3],[3,-3]],[[2,-3],[2,-4]],[[3,-5],[4,-5]],[[4,-5],[4,-6]],[[0,-6],[1,-6]]],
       reflectors: [
         {
@@ -57,9 +58,16 @@
       ],
       robots: [
         [-3, -4],
-        [-3, -4],
-      ]
-    }
+        [5, -2],
+      ],
+    };
+    const ROBOT_COLORS = [
+      'red',
+      'green',
+      'aqua',
+      'yellow',
+      'silver',
+    ]
   </script>
   <script>
     const TAU = 2*Math.PI;
@@ -85,9 +93,16 @@
       context.stroke();
       context.restore();
     };
+
+    const boardTo = (x, y) => {
+      const inverse = boardTransform.inverse();
+      return [
+        x * inverse.a + y * inverse.c + inverse.e,
+        x * inverse.b + y * inverse.d + inverse.f,
+      ]
+    }
     
-    const wallKey = wall => wall.map(i => i.join(":")).join("|");
-    const walls = new Map(BOARD.walls.map(i => [wallKey(i), i]));
+    let effectiveSize = BOARD.size + 1;
     let boardTransform;
     let editingWallSection;
     let scheduledFrame;
@@ -101,26 +116,26 @@
       context.fillStyle = 'white';
       context.fillRect(0, 0, board.width, board.height);
 
-      context.scale(board.width / 18, board.height / 18);
-      context.translate(9, 9);
+      context.scale(board.width / (effectiveSize * 2), board.height / (effectiveSize * 2));
+      context.translate(effectiveSize, effectiveSize);
       boardTransform = context.getTransform().invertSelf().scaleSelf(2);
 
       context.beginPath();
-      context.moveTo(0, -8);
-      context.lineTo(0,  8);
-      context.moveTo(-8, 0);
-      context.lineTo( 8, 0);
+      context.moveTo(0, -BOARD.size);
+      context.lineTo(0,  BOARD.size);
+      context.moveTo(-BOARD.size, 0);
+      context.lineTo( BOARD.size, 0);
       stroke({lineWidth: '4'});
 
       context.beginPath();
-      for (var x = -8; x <= 8; x++) {
-        context.moveTo(x, -8);
-        context.lineTo(x,  8);
+      for (var x = -BOARD.size; x <= BOARD.size; x++) {
+        context.moveTo(x, -BOARD.size);
+        context.lineTo(x,  BOARD.size);
       }
 
-      for (var y = -8; y <= 8; y++) {
-        context.moveTo(-8, y);
-        context.lineTo( 8, y);
+      for (var y = -BOARD.size; y <= BOARD.size; y++) {
+        context.moveTo(-BOARD.size, y);
+        context.lineTo( BOARD.size, y);
       }
       stroke({lineWidth: '1'});
 
@@ -138,7 +153,26 @@
         stroke({lineWidth: '4', strokeStyle: 'silver'});
       }
 
+      context.beginPath();
+      BOARD.robots.forEach(([x, y], i) => {
+        const centerX = x - 0.5 * Math.sign(x);
+        const centerY = y - 0.5 * Math.sign(y);
+        context.beginPath();
+        context.moveTo(centerX, centerY);
+        context.arc(centerX, centerY, 0.4, 0, TAU);
 
+        context.moveTo(x, y);
+        context.arc(x, y, 0.1, 0, TAU);
+        context.fillStyle = ROBOT_COLORS[i];
+        context.save();
+        context.resetTransform();
+        context.scale(devicePixelRatio, devicePixelRatio);
+        context.font = '16px monospace';
+        const [origX, origY] = boardTo(x, y - .3);
+        context.fillText(`(${x}, ${y})`, origX, origY - .3);
+        context.restore();
+        context.fill();
+      });
       
       if (editingWallSection) {
         context.beginPath();
@@ -151,7 +185,7 @@
       }
 
       context.beginPath();
-      for (const [start, end] of walls.values()) {
+      for (const [start, end] of BOARD.walls) {
         context.moveTo(...start);
         context.lineTo(...end);
       }
@@ -167,53 +201,50 @@
     }
     draw();
 
-    let mouseCoordinates;
-    board.addEventListener('mousemove', ({offsetX, offsetY}) => {
-      const x = offsetX * boardTransform.a + offsetY * boardTransform.c + boardTransform.e;
-      const y = offsetX * boardTransform.b + offsetY * boardTransform.d + boardTransform.f;
-      mouseCoordinates = [x, y];
-      editingWallSection = closestGridLine(x, y);
-      debouncedDraw();
+    let selectedRobot = 0;
+    document.addEventListener('keydown', (event) => {
+      switch(event.key){
+        case 'ArrowUp': {
+          move(0, -1);
+          break;
+        }
+        case 'ArrowDown': {
+          move(0, 1);
+          break;
+        }
+        case 'ArrowRight': {
+          move(1, 0);
+          break;
+        }
+        case 'ArrowLeft': {
+          move(-1, 0);
+          break;
+        }
+        case '1': case '2': case '3':
+        case '4': case '5': {
+          selectedRobot = Number(event.key) - 1;
+          break;
+        }
+        default: {
+          console.error(event.key);
+          break;
+        }
+      }
     });
 
-    board.addEventListener('mouseout', event => {
-      editingWallSection = null;
+    const xWalls = range(effectiveSize).map(i =>
+      range(effectiveSize).map(j => j === 0 ? 1 : 0));
+    const absMax = (n, m) => Math.abs(n) > Math.abs(m) ? n : m;
+    // BOARD.walls
+    //   .filter(([w1, w2]) => w1[0] == w2[0])
+    //   .forEach(([w1, w2]) => xWalls[w1[0]][absMax(w1[1], w1[2])]);
+
+    const yWalls = range(effectiveSize).map(i =>
+      range(effectiveSize).map(j => j === 0 ? true : false));
+    const move = (x, y) => {
+      BOARD.robots[selectedRobot][0] += x;
+      BOARD.robots[selectedRobot][1] += y;
       debouncedDraw();
-    });
-
-    board.addEventListener('click', event => {
-      if (editingWallSection) {
-        const key = editingWallSection.map(i => i.join(":")).join("|");
-        walls.has(key) ?
-          walls.delete(key) :
-          walls.set(key, editingWallSection);
-
-        debouncedDraw();
-      }
-    })
-
-    const closestGridBox = (mouseX, mouseY) => [
-      Math.round(mouseX - 0.5) + 0.5,
-      Math.round(mouseY - 0.5) + 0.5,
-    ];
-
-    const closestGridLine = (mouseX, mouseY) => {
-      const roundX = Math.round(mouseX);
-      const roundY = Math.round(mouseY);
-      const xFPart = Math.abs(mouseX - Math.round(mouseX));
-      const yFPart = Math.abs(mouseY - Math.round(mouseY));
-
-      if (xFPart <= yFPart && xFPart < .25) {
-        return [
-          [roundX, Math.trunc(mouseY)],
-          [roundX, Math.trunc(mouseY) + Math.sign(mouseY)],
-        ];
-      } else if (yFPart < .25) {
-        return [
-          [Math.trunc(mouseX), roundY],
-          [Math.trunc(mouseX) + Math.sign(mouseX), roundY],
-        ];
-      }
     }
 
     Object.defineProperty(Object.prototype, 'tap',
