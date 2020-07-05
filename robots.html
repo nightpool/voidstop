@@ -439,8 +439,13 @@
       }
 
       if (divergingCollision) {
-        if (x) { divergingCollision[1] = currentY - divergingCollision.divergingDirection; }
-        else   { divergingCollision[0] = currentX - divergingCollision.divergingDirection; }
+        if (x) {
+          divergingCollision[0] = currentX;
+          divergingCollision[1] = currentY - divergingCollision.divergingDirection;
+        } else {
+          divergingCollision[0] = currentX - divergingCollision.divergingDirection;
+          divergingCollision[1] = currentY;
+        }
 
         delete divergingCollision.divergingDirection;
       }
