@@ -4,31 +4,115 @@
     <meta charset="utf-8">
     <title>Robots</title>
     <style>
-      body, html {
+      html {
         margin: 0;
         padding: 0;
       }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: sans-serif;
+        line-height: 1.2;
+      }
+
       .container {
         display: grid;
-        min-height: 100vh;
+        box-sizing: border-box;
         grid-template-columns: 1fr auto 1fr;
+        gap: 1rem;
+        margin: 1rem;
       }
+
       #board {
-        width: 90vmin;
-        height: 90vmin;
+        width: calc(100vh - 2rem);
+        height: calc(100vh - 2rem);
         margin: auto;
       }
-      #left, #right {
-        white-space: pre-wrap;
-        margin: 2rem 0;
+
+      .left, .right {
+        display: grid;
+        align-content: start;
+      }
+
+      .right {
+        grid-template-rows: 1fr auto;
+      }
+
+      #selectedRobot {
+        height: 50px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 2rem;
+        flex-wrap: wrap;
+      }
+
+      .selectedRobot-robot {
+        border: 3px none currentColor;
+        height: 50px;
+        width: 50px;
+        box-sizing: border-box;
+        display: flex;
+        justify-content: center;
+        align-items: end;
+      }
+
+      .selectedRobot-robot:nth-child(1) { color: red; }
+      .selectedRobot-robot:nth-child(2) { color: limegreen; }
+      .selectedRobot-robot:nth-child(3) { color: aqua; }
+      .selectedRobot-robot:nth-child(4) { color: gold; }
+      .selectedRobot-robot:nth-child(5) { color: silver; }
+
+      #selectedRobot[data-id="0"] .selectedRobot-robot:nth-child(1) {
+        border-style: solid;
+      }
+      #selectedRobot[data-id="1"] .selectedRobot-robot:nth-child(2) {
+        border-style: solid;
+      }
+      #selectedRobot[data-id="2"] .selectedRobot-robot:nth-child(3) {
+        border-style: solid;
+      }
+      #selectedRobot[data-id="3"] .selectedRobot-robot:nth-child(4) {
+        border-style: solid;
+      }
+      #selectedRobot[data-id="4"] .selectedRobot-robot:nth-child(5) {
+        border-style: solid;
+      }
+
+      h1, h2 {
+        text-align: center;
+      }
+
+      footer {
+        font-style: italic;
+        text-align: center;
+        font-size: 14px;
+      }
+
+      footer br {
+        margin: 0.5rem;
       }
     </style>
 </head>
 <body>
   <div class="container">
-    <div id="left"></div>
+    <div class="left">
+      <h1>VOID-STOP</h1>
+      <h2 id="actionCount">0</h2>
+    </div>
     <canvas id="board"></canvas>
-    <div id="right"></div>
+    <div class="right">
+      <div id="selectedRobot" data-id="0">
+        <div class="selectedRobot-robot">1</div>
+        <div class="selectedRobot-robot">2</div>
+        <div class="selectedRobot-robot">3</div>
+        <div class="selectedRobot-robot">4</div>
+        <div class="selectedRobot-robot">5</div>
+      </div>
+      <footer>
+        Void-stop is a hack for Ricochet Robots.<br>
+        Ricochet Robots was designed by Alex Randolph and published by Rio Grande Games.
+      </footer>
+    </div>
   </div>
   <script>
     const BOARD = {
@@ -55,17 +139,13 @@
           slope: -1,
           color: 'silver',
         }
-      ],
-      robots: [
-        [-3, -4],
-        [5, -2],
-      ],
+      ]
     };
     const ROBOT_COLORS = [
       'red',
-      'green',
+      'limegreen',
       'aqua',
-      'yellow',
+      'gold',
       'silver',
     ]
   </script>
@@ -101,8 +181,16 @@
         x * inverse.b + y * inverse.d + inverse.f,
       ]
     }
+
+    const actions = [{
+      type: 'initial',
+      robots: [...new Array(5)].map(i => [
+        Math.floor((Math.random() * 16) - 8) + 0.5,
+        Math.floor((Math.random() * 16) - 8) + 0.5,
+      ])
+    }];
     
-    let effectiveSize = BOARD.size + 1;
+    let effectiveSize = BOARD.size;
     let boardTransform;
     let editingWallSection;
     let scheduledFrame;
@@ -153,25 +241,48 @@
         stroke({lineWidth: '4', strokeStyle: 'silver'});
       }
 
-      context.beginPath();
-      BOARD.robots.forEach(([x, y], i) => {
-        const centerX = x - 0.5 * Math.sign(x);
-        const centerY = y - 0.5 * Math.sign(y);
-        context.beginPath();
-        context.moveTo(centerX, centerY);
-        context.arc(centerX, centerY, 0.4, 0, TAU);
+      actions.forEach(({type, lineSegments, robot}) => {
+        if (lineSegments) {
+          context.beginPath();
+          lineSegments.forEach(([start, end]) => {
+            context.moveTo(start[0], start[1]);
+            context.lineTo(end[0], end[1]);
+          });
+          stroke({lineWidth: '2', strokeStyle: ROBOT_COLORS[robot] || 'black'});
+        }
+      });
 
-        context.moveTo(x, y);
-        context.arc(x, y, 0.1, 0, TAU);
+      const currentRobots = actions[actions.length - 1].robots;
+      currentRobots.forEach(([x, y], i) => {
+        context.beginPath();
+        if (x == 'diverging') {
+          context.rect(
+            -effectiveSize, y - 0.1,
+            effectiveSize * 2, 0.2,
+          );
+          context.rect(
+            -effectiveSize, -y - 0.1,
+            effectiveSize * 2, 0.2,
+          );
+          context.globalAlpha = 0.5;
+        } else if (y == 'diverging') {
+          context.rect(
+            x - 0.1, -effectiveSize,
+            0.2, effectiveSize * 2
+          );
+          context.rect(
+            -x - 0.1, -effectiveSize,
+            0.2, effectiveSize * 2
+          );
+          context.globalAlpha = 0.5;
+        } else {
+          context.moveTo(x, y);
+          context.arc(x, y, 0.4, 0, TAU);
+        }
+
         context.fillStyle = ROBOT_COLORS[i];
-        context.save();
-        context.resetTransform();
-        context.scale(devicePixelRatio, devicePixelRatio);
-        context.font = '16px monospace';
-        const [origX, origY] = boardTo(x, y - .3);
-        context.fillText(`(${x}, ${y})`, origX, origY - .3);
-        context.restore();
         context.fill();
+        context.globalAlpha = 1;
       });
       
       if (editingWallSection) {
@@ -200,8 +311,8 @@
       }
     }
     draw();
+    window.addEventListener('resize', debouncedDraw)
 
-    let selectedRobot = 0;
     document.addEventListener('keydown', (event) => {
       switch(event.key){
         case 'ArrowUp': {
@@ -220,9 +331,15 @@
           move(-1, 0);
           break;
         }
+        case 'z': {
+          actions.pop();
+          debouncedDraw();
+          requestAnimationFrame(renderActions);
+          break;
+        }
         case '1': case '2': case '3':
         case '4': case '5': {
-          selectedRobot = Number(event.key) - 1;
+          selectedRobot.dataset.id = Number(event.key) - 1;
           break;
         }
         default: {
@@ -232,20 +349,121 @@
       }
     });
 
-    const xWalls = range(effectiveSize).map(i =>
-      range(effectiveSize).map(j => j === 0 ? 1 : 0));
+    const xWalls = range(BOARD.size * 2 + 1)
+      .map(i => range(BOARD.size * 2 + 1)
+        .map(j => i === BOARD.size &&
+             (j - BOARD.size) <= BOARD.size &&
+             (j - BOARD.size) >= -BOARD.size));
     const absMax = (n, m) => Math.abs(n) > Math.abs(m) ? n : m;
-    // BOARD.walls
-    //   .filter(([w1, w2]) => w1[0] == w2[0])
-    //   .forEach(([w1, w2]) => xWalls[w1[0]][absMax(w1[1], w1[2])]);
+    BOARD.walls
+      .filter(([w1, w2]) => w1[0] == w2[0])
+      .map(([w1, w2]) => xWalls[w1[0] + BOARD.size][absMax(w1[1], w2[1]) + BOARD.size] = true);
 
-    const yWalls = range(effectiveSize).map(i =>
-      range(effectiveSize).map(j => j === 0 ? true : false));
+    const yWalls = range(BOARD.size * 2 + 1)
+      .map(i => range(BOARD.size * 2 + 1)
+        .map(j => i === BOARD.size &&
+             (j - BOARD.size) <= BOARD.size &&
+             (j - BOARD.size) >= -BOARD.size));
+    BOARD.walls
+      .filter(([w1, w2]) => w1[1] == w2[1])
+      .forEach(([w1, w2]) => yWalls[w1[1] + BOARD.size][absMax(w1[0], w2[0]) + BOARD.size] = true);
+
     const move = (x, y) => {
-      BOARD.robots[selectedRobot][0] += x;
-      BOARD.robots[selectedRobot][1] += y;
+      const currentRobots = actions[actions.length - 1].robots;
+      const draftRobots = currentRobots.map(i => Object.assign([], i));
+
+      const currentRobot = Number(selectedRobot.dataset.id);
+      const movedRobot = currentRobots[currentRobot];
+
+      if (movedRobot.divergingDirection !== undefined) { return; }
+      let [currentX, currentY] = movedRobot;
+
+      let currentSegmentStart = movedRobot;
+      let lineSegments = [];
+
+      let wall = false;
+      let moved = false;
+      while (true) {
+        let robot;
+        let [newX, newY] = [currentX + x, currentY + y];
+
+        if (Math.abs(newX) > effectiveSize) {
+          lineSegments.push([currentSegmentStart, [newX, newY]]);
+          newX = -(effectiveSize + 0.5) * Math.sign(newX);
+          newY = -newY;
+          currentSegmentStart = [newX, newY];
+        } else if (Math.abs(newY) > effectiveSize) {
+          lineSegments.push([currentSegmentStart, [newX, newY]]);
+          newX = -newX;
+          newY = -(effectiveSize + 0.5) * Math.sign(newY);
+          currentSegmentStart = [newX, newY];
+        } else {
+          if (x) {
+            const [wallX, wallY] = [currentX + x * 0.5, currentY + 0.5 * Math.sign(currentY)];
+            wall = xWalls[wallX + BOARD.size] && xWalls[wallX + BOARD.size][wallY + BOARD.size];
+          } else {
+            const [wallX, wallY] = [currentX + 0.5 * Math.sign(currentX), currentY + y * 0.5];
+            wall = yWalls[wallY + BOARD.size] && yWalls[wallY + BOARD.size][wallX + BOARD.size];
+          }
+
+          robot = currentRobots.findIndex(([x, y]) => x == newX && y == newY);
+          if (robot == -1) { robot = undefined; }
+        }
+
+        if (robot == currentRobot) {
+          draftRobots[currentRobot] = [x ? 'diverging' : currentX, y ? 'diverging' : currentY];
+          draftRobots[currentRobot].divergingDirection = x || y;
+
+          selectedRobot.dataset.id = draftRobots.findIndex(i => !i.divergingDirection);
+          break;
+        } else if (wall || robot !== undefined) {
+          draftRobots[currentRobot] = [currentX, currentY];
+          break;
+        } else {
+          moved = true;
+          [currentX, currentY] = [newX, newY];
+        }
+      }
+
+      lineSegments.push([currentSegmentStart, [currentX, currentY]]);
+
+      if (!moved) { return; }
+
+      let divergingCollision;
+      if (x) {
+        divergingCollision = draftRobots.find(([x, y]) =>
+          Math.abs(x) == Math.abs(currentX) && y == 'diverging');
+      } else {
+        divergingCollision = draftRobots.find(([x, y]) =>
+          x == 'diverging' && Math.abs(y) == Math.abs(currentY));
+      }
+
+      if (divergingCollision) {
+        if (x) { divergingCollision[1] = currentY - divergingCollision.divergingDirection; }
+        else   { divergingCollision[0] = currentX - divergingCollision.divergingDirection; }
+
+        delete divergingCollision.divergingDirection;
+      }
+
+      actions.push({
+        type: 'move',
+        move: [x, y],
+        robot: currentRobot,
+        robots: draftRobots,
+        lineSegments,
+      });
+
+      if (Math.abs(currentX) > effectiveSize || Math.abs(currentY) > effectiveSize) {
+        effectiveSize += 1;
+      }
+
       debouncedDraw();
+      requestAnimationFrame(renderActions);
     }
+
+    const renderActions = () => {
+      actionCount.textContent = actions.length - 1;
+    };
 
     Object.defineProperty(Object.prototype, 'tap',
       { value: tap, configurable: true, writable: true }
