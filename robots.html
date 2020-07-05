@@ -387,12 +387,12 @@
         let robot;
         let [newX, newY] = [currentX + x, currentY + y];
 
-        if (Math.abs(newX) > effectiveSize) {
+        if (Math.abs(newX) > (effectiveSize + 1)) {
           lineSegments.push([currentSegmentStart, [newX, newY]]);
           newX = -(effectiveSize + 0.5) * Math.sign(newX);
           newY = -newY;
           currentSegmentStart = [newX, newY];
-        } else if (Math.abs(newY) > effectiveSize) {
+        } else if (Math.abs(newY) > (effectiveSize + 1)) {
           lineSegments.push([currentSegmentStart, [newX, newY]]);
           newX = -newX;
           newY = -(effectiveSize + 0.5) * Math.sign(newY);
